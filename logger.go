@@ -37,6 +37,9 @@ type Logger struct {
 	fileName   string
 	fileLogger *log.Logger
 	logFile    *os.File
+
+	isAsync bool
+	queue   chan func()
 }
 
 func New() *Logger {
@@ -46,6 +49,20 @@ func New() *Logger {
 		level:     LOG,
 		logger:    log.New(os.Stdout, "", flags),
 		loggerErr: log.New(os.Stderr, "", flags),
+	}
+}
+
+func NewAsync() *Logger {
+	l := New()
+	l.isAsync = true
+	l.queue = make(chan func())
+	go l.readQueue()
+	return l
+}
+
+func (l *Logger) readQueue() {
+	for f := range l.queue {
+		f()
 	}
 }
 
@@ -127,7 +144,7 @@ func (l *Logger) checkCurrentFile() error {
 func (l *Logger) initLogFile() error {
 	now := time.Now()
 
-	name := l.fileName + "." + now.Format("02012006") + ".log"
+	name := l.fileName + "." + now.Format("20060102") + ".log"
 	f, err := os.OpenFile(
 		path.Join(l.filePath, name),
 		os.O_WRONLY|os.O_CREATE|os.O_APPEND,
@@ -147,6 +164,21 @@ func (l *Logger) initLogFile() error {
 }
 
 func (l *Logger) msg(text string, level LogLevel, isErr bool) {
+	if l.isAsync {
+		l.queue <- func(){
+			l.sendMsg(text, level, isErr)
+		}
+
+		return
+	}
+
+	l.sendMsg(text, level, isErr)
+}
+
+func (l *Logger) sendMsg(text string, level LogLevel, isErr bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if l.level <= level {
 		if isErr {
 			l.loggerErr.Println(getPrefix(level, false) + text)
@@ -168,113 +200,71 @@ func (l *Logger) msg(text string, level LogLevel, isErr bool) {
 }
 
 func (l *Logger) Trace(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, TRACE, false)
 	return l
 }
 
 func (l *Logger) Tracef(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), TRACE, false)
 	return l
 }
 
 func (l *Logger) Debug(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, DEBUG, false)
 	return l
 }
 
 func (l *Logger) Debugf(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), DEBUG, false)
 	return l
 }
 
 func (l *Logger) Info(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, INFO, false)
 	return l
 }
 
 func (l *Logger) Infof(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), INFO, false)
 	return l
 }
 
 func (l *Logger) Log(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, LOG, false)
 	return l
 }
 
 func (l *Logger) Logf(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), LOG, false)
 	return l
 }
 
 func (l *Logger) Warn(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, WARN, false)
 	return l
 }
 
 func (l *Logger) Warnf(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), WARN, false)
 	return l
 }
 
 func (l *Logger) Error(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, ERROR, true)
 	return l
 }
 
 func (l *Logger) Errorf(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), ERROR, true)
 	return l
 }
 
 func (l *Logger) Fatal(text string) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(text, FATAL, true)
 	return l
 }
 
 func (l *Logger) Fatalf(format string, v ...interface{}) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.msg(fmt.Sprintf(format, v...), FATAL, true)
 	return l
 }
@@ -308,7 +298,7 @@ func getPrefix(level LogLevel, file bool) string {
 	case ERROR:
 		prefix = "\033[31m" + prefix + "\033[39m"
 	case FATAL:
-		prefix = "\033[0;41m" + prefix + "\033[0;39m"
+		prefix = "\033[0;41m" + prefix[:len(prefix)-1] + "\033[0;39m "
 	}
 
 	return prefix
