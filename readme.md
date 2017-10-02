@@ -4,6 +4,9 @@ logger
 Logger is just a simple log system for golang applications. Allow print in the terminal and in a 
 file at the same time.  
 
+## Install
+```go get -u github.com/Nazariglez/logger```
+
 ## How to use
 See `example` folder.
 
