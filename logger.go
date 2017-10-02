@@ -163,19 +163,19 @@ func (l *Logger) initLogFile() error {
 	return nil
 }
 
-func (l *Logger) msg(text string, level LogLevel, isErr bool) {
+func (l *Logger) msg(level LogLevel, isErr bool, v... interface{}) {
 	if l.isAsync {
 		l.queue <- func() {
-			l.sendMsg(text, level, isErr)
+			l.sendMsg(level, isErr, v)
 		}
 
 		return
 	}
 
-	l.sendMsg(text, level, isErr)
+	l.sendMsg(level, isErr, v)
 }
 
-func (l *Logger) sendMsg(text string, level LogLevel, isErr bool) {
+func (l *Logger) sendMsg(level LogLevel, isErr bool, args []interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -187,101 +187,104 @@ func (l *Logger) sendMsg(text string, level LogLevel, isErr bool) {
 			return
 		}
 
-		l.fileLogger.Println(getPrefix(level, true) + text)
+		arg := append([]interface{}{getPrefix(level, true)}, args...)
+		l.fileLogger.Println(arg...)
 	}
 
 	if l.level <= level {
+		args = append([]interface{}{getPrefix(level, false)}, args...)
+
 		if isErr {
 			if level == FATAL {
-				l.loggerErr.Fatal(getPrefix(level, false) + text)
+				l.loggerErr.Fatal(args...)
 			} else {
-				l.loggerErr.Println(getPrefix(level, false) + text)
+				l.loggerErr.Println(args...)
 			}
 		} else {
-			l.logger.Println(getPrefix(level, false) + text)
+			l.logger.Println(args...)
 		}
 	}
 }
 
-func (l *Logger) Trace(text string) *Logger {
-	l.msg(text, TRACE, false)
+func (l *Logger) Trace(v... interface{}) *Logger {
+	l.msg(TRACE, false, v...)
 	return l
 }
 
 func (l *Logger) Tracef(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), TRACE, false)
+	l.msg(TRACE, false, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Debug(text string) *Logger {
-	l.msg(text, DEBUG, false)
+func (l *Logger) Debug(v... interface{}) *Logger {
+	l.msg(DEBUG, false, v...)
 	return l
 }
 
 func (l *Logger) Debugf(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), DEBUG, false)
+	l.msg(DEBUG, false, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Info(text string) *Logger {
-	l.msg(text, INFO, false)
+func (l *Logger) Info(v... interface{}) *Logger {
+	l.msg(INFO, false, v...)
 	return l
 }
 
 func (l *Logger) Infof(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), INFO, false)
+	l.msg(INFO, false, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Log(text string) *Logger {
-	l.msg(text, LOG, false)
+func (l *Logger) Log(v... interface{}) *Logger {
+	l.msg(LOG, false, v...)
 	return l
 }
 
 func (l *Logger) Logf(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), LOG, false)
+	l.msg(LOG, false, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Warn(text string) *Logger {
-	l.msg(text, WARN, false)
+func (l *Logger) Warn(v... interface{}) *Logger {
+	l.msg(WARN, false, v...)
 	return l
 }
 
 func (l *Logger) Warnf(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), WARN, false)
+	l.msg(WARN, false, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Error(text string) *Logger {
-	l.msg(text, ERROR, true)
+func (l *Logger) Error(v... interface{}) *Logger {
+	l.msg(ERROR, true, v...)
 	return l
 }
 
 func (l *Logger) Errorf(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), ERROR, true)
+	l.msg(ERROR, true, fmt.Sprintf(format, v...))
 	return l
 }
 
-func (l *Logger) Fatal(text string) *Logger {
-	l.msg(text, FATAL, true)
+func (l *Logger) Fatal(v... interface{}) *Logger {
+	l.msg(FATAL, true, v...)
 	return l
 }
 
 func (l *Logger) Fatalf(format string, v ...interface{}) *Logger {
-	l.msg(fmt.Sprintf(format, v...), FATAL, true)
+	l.msg(FATAL, true, fmt.Sprintf(format, v...))
 	return l
 }
 
 //
 var levelPrefix = map[LogLevel]string{
-	TRACE: "Trace: ",
-	DEBUG: "Debug: ",
-	INFO:  "Info: ",
-	LOG:   "Log: ",
-	WARN:  "Warn: ",
-	ERROR: "Error: ",
-	FATAL: "Fatal: ",
+	TRACE: "Trace:",
+	DEBUG: "Debug:",
+	INFO:  "Info:",
+	LOG:   "Log:",
+	WARN:  "Warn:",
+	ERROR: "Error:",
+	FATAL: "Fatal:",
 }
 
 func getPrefix(level LogLevel, file bool) string {
@@ -302,7 +305,7 @@ func getPrefix(level LogLevel, file bool) string {
 	case ERROR:
 		prefix = "\033[31m" + prefix + "\033[39m"
 	case FATAL:
-		prefix = "\033[0;41m" + prefix[:len(prefix)-1] + "\033[0;39m "
+		prefix = "\033[0;41m" + prefix + "\033[0;39m "
 	}
 
 	return prefix
