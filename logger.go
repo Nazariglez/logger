@@ -165,7 +165,7 @@ func (l *Logger) initLogFile() error {
 
 func (l *Logger) msg(text string, level LogLevel, isErr bool) {
 	if l.isAsync {
-		l.queue <- func(){
+		l.queue <- func() {
 			l.sendMsg(text, level, isErr)
 		}
 
@@ -179,14 +179,6 @@ func (l *Logger) sendMsg(text string, level LogLevel, isErr bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.level <= level {
-		if isErr {
-			l.loggerErr.Println(getPrefix(level, false) + text)
-		} else {
-			l.logger.Println(getPrefix(level, false) + text)
-		}
-	}
-
 	if l.logFile != nil && l.fileLevel <= level {
 		err := l.checkCurrentFile()
 
@@ -196,6 +188,18 @@ func (l *Logger) sendMsg(text string, level LogLevel, isErr bool) {
 		}
 
 		l.fileLogger.Println(getPrefix(level, true) + text)
+	}
+
+	if l.level <= level {
+		if isErr {
+			if level == FATAL {
+				l.loggerErr.Fatal(getPrefix(level, false) + text)
+			} else {
+				l.loggerErr.Println(getPrefix(level, false) + text)
+			}
+		} else {
+			l.logger.Println(getPrefix(level, false) + text)
+		}
 	}
 }
 
